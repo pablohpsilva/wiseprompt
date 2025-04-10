@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:14-alpine
+    container_name: wiseprompt-db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: wiseprompt
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wiseprompt-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Nest.js)
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: wiseprompt-api
+    restart: always
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/wiseprompt?schema=public
+      JWT_SECRET: your-secret-key-change-this-in-production
+      JWT_EXPIRATION: 7d
+      NODE_ENV: production
+      PORT: 3001
+      DOMAIN: wiseprompt.io
+      ORIGIN: https://wiseprompt.io
+    networks:
+      - wiseprompt-network
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wiseprompt-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    networks:
+      - wiseprompt-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+networks:
+  wiseprompt-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

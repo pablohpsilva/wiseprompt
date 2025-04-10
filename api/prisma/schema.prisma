@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Prompt {
+  id              String     @id @default(uuid())
+  walletAddress   String     @map("wallet_address")
+  name            String
+  goal            String
+  description     String
+  testedAiAgents  String[]   @map("tested_ai_agents")
+  promptVersion   String     @default("1.0.0") @map("prompt_version")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  lastTestedDate  DateTime?  @map("last_tested_date")
+  price           Decimal    @db.Decimal(10, 2)
+  currency        String
+  
+  // Relations
+  tags            PromptTag[]
+  purchases       Purchase[]
+  ratings         Rating[]
+
+  @@index([walletAddress])
+  @@index([name])
+  @@index([createdAt])
+  @@index([price])
+  @@map("prompts")
+}
+
+model PromptTag {
+  promptId   String   @map("prompt_id")
+  tag        String
+
+  // Relations
+  prompt     Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@id([promptId, tag])
+  @@map("prompt_tags")
+}
+
+model Purchase {
+  id              String   @id @default(uuid())
+  walletAddress   String   @map("wallet_address")
+  promptId        String   @map("prompt_id")
+  transactionHash String?  @map("transaction_hash")
+  price           Decimal  @db.Decimal(10, 2)
+  currency        String
+  purchaseDate    DateTime @default(now()) @map("purchase_date")
+  
+  // Relations
+  prompt          Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([walletAddress])
+  @@index([promptId])
+  @@index([purchaseDate])
+  @@map("purchases")
+}
+
+model Rating {
+  id                String   @id @default(uuid())
+  walletAddress     String   @map("wallet_address")
+  promptId          String   @map("prompt_id")
+  ratingScore       Int      @map("rating_score")
+  ratingDescription String?  @map("rating_description")
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  prompt            Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, walletAddress])
+  @@index([walletAddress])
+  @@index([promptId])
+  @@index([ratingScore])
+  @@map("ratings")
+}
+
+model Preference {
+  walletAddress       String @id @map("wallet_address")
+  themePreference     String @default("light") @map("theme_preference")
+  notificationSettings Json   @default("{}") @map("notification_settings")
+  
+  @@map("preferences")
+}
+
+model AuthNonce {
+  walletAddress String   @id @map("wallet_address")
+  nonce         String
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  @@index([nonce])
+  @@map("auth_nonces")
+}
+
+model ApiKey {
+  id            String    @id @default(uuid())
+  key           String    @unique
+  name          String
+  walletAddress String    @map("wallet_address")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  expiresAt     DateTime? @map("expires_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastUsedAt    DateTime? @map("last_used_at")
+
+  @@index([key])
+  @@index([walletAddress])
+  @@map("api_keys")
+} 
