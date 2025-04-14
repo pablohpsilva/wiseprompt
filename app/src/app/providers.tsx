@@ -11,7 +11,8 @@ import { http } from "viem";
 import { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const walletConnectProjectId = process.env.WALLETCONNET_PROJECT_ID; // In production, use environment variable
+const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_WALLETCONNET_PROJECT_ID ?? "hello-man"; // In production, use environment variable
 
 const config = createConfig({
   appName: "WisePrompt",
