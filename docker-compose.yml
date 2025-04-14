@@ -9,9 +9,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: wiseprompt
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - PORT=${PORT}
+      - NODE_ENV=${NODE_ENV}
+      - DOMAIN=${DOMAIN}
+      - ORIGIN=${ORIGIN}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
