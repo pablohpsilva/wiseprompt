@@ -42,35 +42,6 @@ export default function PromptDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, user } = useAuth();
 
-  useEffect(() => {
-    const fetchPromptDetails = async () => {
-      if (!id) return;
-
-      setIsLoading(true);
-      try {
-        const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/prompts/${id}`,
-          {
-            headers: user?.token
-              ? {
-                  Authorization: `Bearer ${user.token}`,
-                }
-              : {},
-          }
-        );
-        setPrompt(response.data);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching prompt details:", err);
-        setError("Failed to load prompt details. Please try again later.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPromptDetails();
-  }, [id, user]);
-
   const handlePurchase = async () => {
     if (!prompt) return;
 
@@ -102,6 +73,36 @@ export default function PromptDetailPage() {
       setError("Failed to purchase this prompt. Please try again.");
     }
   };
+
+  useEffect(() => {
+    const fetchPromptDetails = async () => {
+      if (!id) return;
+
+      setIsLoading(true);
+      try {
+        console.log(`user?.walletAddress`, user?.walletAddress)
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/prompts/${id}?walletAddress=${user?.walletAddress}`,
+          {
+            headers: user?.token
+              ? {
+                  Authorization: `Bearer ${user.token}`,
+                }
+              : {},
+          }
+        );
+        setPrompt(response.data);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching prompt details:", err);
+        setError("Failed to load prompt details. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPromptDetails();
+  }, [id, user]);
 
   if (isLoading) {
     return (
@@ -236,7 +237,7 @@ export default function PromptDetailPage() {
           ) : (
             <button
               onClick={handlePurchase}
-              className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-md transition duration-200"
+              className="w-full py-3 px-4 bg-blue-500 hover:bg-primary-700 text-white font-bold rounded-md transition duration-200 cursor-pointer"
             >
               Purchase Prompt
             </button>
@@ -247,7 +248,7 @@ export default function PromptDetailPage() {
       {/* Ratings Section */}
       <div className="mt-10">
         <h2 className="text-2xl font-bold mb-4">Ratings & Reviews</h2>
-        {prompt.ratings.length > 0 ? (
+        {prompt?.ratings?.length > 0 ? (
           <div className="space-y-4">
             {prompt.ratings.map((rating) => (
               <div

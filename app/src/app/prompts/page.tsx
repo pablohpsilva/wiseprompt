@@ -16,11 +16,28 @@ interface Prompt {
   tags: { tag: string }[];
 }
 
+interface PromptResponse {
+  results: Prompt[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [prompts, setPrompts] = useState<PromptResponse>({
+    results: [],
+    pagination: {
+      total: 0,
+      page: 1,
+      limit: 10,
+    },
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
+  console.log("isAuthenticated", isAuthenticated);
 
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -29,6 +46,7 @@ export default function PromptsPage() {
         const response = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/prompts`
         );
+        console.log("response.data", response.data);
         setPrompts(response.data);
         setError(null);
       } catch (err) {
@@ -64,13 +82,13 @@ export default function PromptsPage() {
         >
           <span className="block sm:inline">{error}</span>
         </div>
-      ) : prompts.length === 0 ? (
+      ) : prompts.results.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-lg text-gray-500">No prompts available yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {prompts.map((prompt) => (
+          {prompts.results.map((prompt) => (
             <div
               key={prompt.id}
               className="card hover:shadow-lg transition-shadow duration-300"

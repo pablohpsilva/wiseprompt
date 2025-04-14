@@ -13,6 +13,7 @@ export default function CreatePromptPage() {
     name: "",
     description: "",
     goal: "",
+    prompt: "",
     testedAiAgents: [""],
     tags: [""],
     price: 0,
@@ -190,7 +191,7 @@ export default function CreatePromptPage() {
                 htmlFor="description"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-                Description
+                Short Description
               </label>
               <textarea
                 id="description"
@@ -222,8 +223,27 @@ export default function CreatePromptPage() {
             </div>
 
             <div>
+              <label
+                htmlFor="prompt"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Prompt (only <strong>paying</strong> users will see this)
+              </label>
+              <textarea
+                id="prompt"
+                name="prompt"
+                rows={3}
+                required
+                className="mt-1 input"
+                value={formData.prompt}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tested AI Agents
+                List the AI Agents you have <strong>tested</strong> this prompt
+                with
               </label>
               {formData.testedAiAgents.map((agent, index) => (
                 <div key={index} className="flex items-center mb-2">
@@ -332,7 +352,7 @@ export default function CreatePromptPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-md transition duration-200 disabled:opacity-50"
+                className="w-full py-3 px-4 bg-blue-500 hover:bg-primary-700 text-white font-bold rounded-md transition duration-200 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? "Creating..." : "Create Prompt"}
               </button>

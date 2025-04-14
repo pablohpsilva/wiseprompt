@@ -16,6 +16,7 @@ model Prompt {
   name            String
   goal            String
   description     String
+  prompt          String     @default("")
   testedAiAgents  String[]   @map("tested_ai_agents")
   promptVersion   String     @default("1.0.0") @map("prompt_version")
   createdAt       DateTime   @default(now()) @map("created_at")

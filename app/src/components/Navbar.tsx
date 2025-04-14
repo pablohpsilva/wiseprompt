@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
@@ -22,6 +22,13 @@ const Navbar: React.FC = () => {
       toast.error("Failed to sign in with your wallet");
     }
   };
+
+  // Auto-login when wallet is connected
+  useEffect(() => {
+    if (isConnected && !isAuthenticated) {
+      handleLogin();
+    }
+  }, [isConnected, isAuthenticated]);
 
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-sm">
@@ -59,23 +66,23 @@ const Navbar: React.FC = () => {
           <div className="flex items-center space-x-4">
             <ConnectButton showBalance={false} />
 
-            {isConnected && !isAuthenticated && (
+            {/* {isConnected && !isAuthenticated && (
               <button
                 onClick={handleLogin}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               >
                 Sign In
               </button>
-            )}
+            )} */}
 
-            {isAuthenticated && (
+            {/* {isAuthenticated && (
               <button
                 onClick={logout}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-primary-600 dark:text-primary-400 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               >
                 Sign Out
               </button>
-            )}
+            )} */}
           </div>
         </div>
       </div>

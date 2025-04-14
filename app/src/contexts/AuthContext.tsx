@@ -38,6 +38,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
 
+  const login = async () => {
+    if (!address) return;
+
+    try {
+      setLoading(true);
+
+      // 1. Get a nonce from the server
+      const { data: nonceData } = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/nonce`,
+        {
+          walletAddress: address,
+        }
+      );
+      const { nonce } = nonceData;
+
+      // 2. Create and sign the SIWE message
+      const message = new SiweMessage({
+        // domain: window.location.host,
+        domain: "127.0.0.1",
+        scheme: "http",
+        address,
+        statement: "Sign in with Ethereum to WisePrompt",
+        // uri: window.location.origin,
+        uri: "http://127.0.0.1:3000",
+        version: "1",
+        chainId: 1, // Ethereum mainnet
+        nonce,
+      });
+
+      const messageToSign = message.prepareMessage();
+
+      // 3. Sign the message with the wallet
+      const signature = await signMessageAsync({
+        account: address,
+        message: messageToSign,
+      });
+
+      // 4. Verify the signature on the server and get a JWT token
+      const { data: verifyData } = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/verify`,
+        {
+          message: messageToSign,
+          signature,
+          address,
+          nonce,
+        }
+      );
+
+      const { token: newToken } = verifyData;
+
+      // 5. Store the token
+      localStorage.setItem("auth_token", newToken);
+      setToken(newToken);
+
+      // 6. Set the token in axios defaults for future requests
+      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+    } catch (error) {
+      console.error("Authentication error:", error);
+      logout();
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("auth_token");
+    setToken(null);
+    disconnect();
+    delete axios.defaults.headers.common["Authorization"];
+  };
+
+  // Create the user object that includes the wallet address and token
+  const user = address && token ? { walletAddress: address, token } : null;
+
   // Check for existing token on mount
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
@@ -55,70 +130,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       logout();
     }
   }, [isConnected, token]);
-
-  const login = async () => {
-    if (!address) return;
-
-    try {
-      setLoading(true);
-
-      // 1. Get a nonce from the server
-      const { data: nonceData } = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/nonce`
-      );
-      const { nonce } = nonceData;
-
-      // 2. Create and sign the SIWE message
-      const message = new SiweMessage({
-        domain: window.location.host,
-        address: address,
-        statement: "Sign in with Ethereum to WisePrompt",
-        uri: window.location.origin,
-        version: "1",
-        chainId: 1, // Ethereum mainnet
-        nonce,
-      });
-
-      const messageToSign = message.prepareMessage();
-
-      // 3. Sign the message with the wallet
-      const signature = await signMessageAsync({ message: messageToSign });
-
-      // 4. Verify the signature on the server and get a JWT token
-      const { data: verifyData } = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/verify`,
-        {
-          signature,
-          address,
-          nonce,
-        }
-      );
-
-      const { token: newToken } = verifyData;
-
-      // 5. Store the token
-      localStorage.setItem("auth_token", newToken);
-      setToken(newToken);
-
-      // 6. Set the token in axios defaults for future requests
-      axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
-    } catch (error) {
-      console.error("Authentication error:", error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("auth_token");
-    setToken(null);
-    disconnect();
-    delete axios.defaults.headers.common["Authorization"];
-  };
-
-  // Create the user object that includes the wallet address and token
-  const user = address && token ? { walletAddress: address, token } : null;
 
   return (
     <AuthContext.Provider
