@@ -10,23 +10,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum CurrencyType {
+  FIAT
+  CRYPTO
+}
+
 model Prompt {
   id              String     @id @default(uuid())
   walletAddress   String     @map("wallet_address")
   name            String
-  goal            String
-  description     String
-  prompt          String     @default("")
-  testedAiAgents  String[]   @map("tested_ai_agents")
+  goal            String     @default("") 
+  description     String     @default("")
+  content         String     @default("")
   promptVersion   String     @default("1.0.0") @map("prompt_version")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
-  lastTestedDate  DateTime?  @map("last_tested_date")
+  lastTestedDate  DateTime?  @map("last_tested_date") @default(now())
   price           Decimal    @db.Decimal(10, 2)
-  currency        String
   
   // Relations
-  tags            PromptTag[]
+  promptTags      PromptTag[]
+  promptAiAgents  PromptAiAgent[]
   purchases       Purchase[]
   ratings         Rating[]
 
@@ -37,15 +41,48 @@ model Prompt {
   @@map("prompts")
 }
 
-model PromptTag {
-  promptId   String   @map("prompt_id")
-  tag        String
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
 
   // Relations
-  prompt     Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  promptTags PromptTag[]
 
-  @@id([promptId, tag])
+  @@map("tags")
+}
+
+model AiAgent {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  // Relations
+  promptAiAgents PromptAiAgent[]
+
+  @@map("ai_agents")
+}
+
+model PromptTag {
+  promptId String  @map("prompt_id")
+  tagId    Int     @map("tag_id")
+
+  // Relations
+  prompt Prompt  @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  tag    Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([promptId, tagId])
   @@map("prompt_tags")
+}
+
+model PromptAiAgent {
+  promptId  String  @map("prompt_id")
+  aiAgentId Int     @map("ai_agent_id")
+
+  // Relations
+  prompt  Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  aiAgent AiAgent @relation(fields: [aiAgentId], references: [id], onDelete: Cascade)
+
+  @@id([promptId, aiAgentId])
+  @@map("prompt_ai_agents")
 }
 
 model Purchase {
@@ -54,15 +91,17 @@ model Purchase {
   promptId        String   @map("prompt_id")
   transactionHash String?  @map("transaction_hash")
   price           Decimal  @db.Decimal(10, 2)
-  currency        String
+  currencyId      Int      @map("currency_id")
   purchaseDate    DateTime @default(now()) @map("purchase_date")
   
   // Relations
   prompt          Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  currency        Currency @relation(fields: [currencyId], references: [id])
 
   @@index([walletAddress])
   @@index([promptId])
   @@index([purchaseDate])
+  @@index([currencyId])
   @@map("purchases")
 }
 
@@ -85,11 +124,47 @@ model Rating {
 }
 
 model Preference {
-  walletAddress       String @id @map("wallet_address")
-  themePreference     String @default("light") @map("theme_preference")
-  notificationSettings Json   @default("{}") @map("notification_settings")
-  
+  walletAddress             String        @id @map("wallet_address")
+  themePreference           String        @default("light") @map("theme_preference")
+  notificationSettings      Json          @default("{}") @map("notification_settings")
+
+  // Relation to Payout Settings
+  payoutSettings            PayoutSetting[]
+
   @@map("preferences")
+}
+
+model PayoutSetting {
+  id                        String        @id @default(uuid())
+  walletAddress             String        @map("wallet_address")
+  isActive                  Boolean       @default(false) @map("is_active") // App logic should ensure only one is true per walletAddress
+
+  // Payout Details
+  payoutType                CurrencyType  @map("payout_type") // FIAT or CRYPTO
+
+  // FIAT Specific (if payoutType is FIAT)
+  fiatPayoutAccountId       String?       @map("fiat_payout_account_id") // e.g., Stripe Account ID
+
+  // CRYPTO Specific (if payoutType is CRYPTO)
+  cryptoPayoutWalletAddress String?       @map("crypto_payout_wallet_address") // The receiving address
+  payoutCurrencyId          Int?          @map("payout_currency_id")       // Which crypto currency?
+  payoutNetworkChainId      Int?          @map("payout_network_chain_id")  // On which chain?
+
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  preference                Preference    @relation(fields: [walletAddress], references: [walletAddress], onDelete: Cascade)
+  payoutCurrency            Currency?     @relation("PayoutCurrency", fields: [payoutCurrencyId], references: [id])
+  payoutNetworkChain        NetworkChain? @relation("PayoutNetwork", fields: [payoutNetworkChainId], references: [id])
+
+  // Indexes
+  @@index([walletAddress])
+  @@index([isActive])
+  @@index([payoutCurrencyId])
+  @@index([payoutNetworkChainId])
+
+  @@map("payout_settings")
 }
 
 model AuthNonce {
@@ -117,4 +192,53 @@ model ApiKey {
   @@index([key])
   @@index([walletAddress])
   @@map("api_keys")
+}
+
+model Currency {
+  id     Int    @id @default(autoincrement())
+  code   String @unique
+  name   String
+  symbol String @unique
+  type   CurrencyType @default(FIAT) @map("type")
+
+  // Relations
+  purchases Purchase[]
+  networkChains CurrencyNetworkChain[]
+  payoutSettings PayoutSetting[] @relation("PayoutCurrency") // Updated inverse relation
+
+  @@index([type])
+
+  @@map("currencies")
+}
+
+model NetworkChain {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  symbol      String    // Native currency symbol (e.g., ETH, MATIC)
+  chainId     Int       @unique @map("chain_id")
+  rpcUrl      String?   @map("rpc_url")
+  explorerUrl String?   @map("explorer_url")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  currencies  CurrencyNetworkChain[]
+  payoutSettings PayoutSetting[] @relation("PayoutNetwork") // Updated inverse relation
+
+  @@map("network_chains")
+}
+
+model CurrencyNetworkChain {
+  currencyId     Int     @map("currency_id")
+  networkChainId Int     @map("network_chain_id")
+  contractAddress String? @map("contract_address") // Nullable for native currencies
+
+  // Relations
+  currency       Currency     @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+  networkChain   NetworkChain @relation(fields: [networkChainId], references: [id], onDelete: Cascade)
+
+  @@id([currencyId, networkChainId])
+  @@index([contractAddress]) // Index for searching by contract address
+  @@map("currency_network_chains")
 } 
+

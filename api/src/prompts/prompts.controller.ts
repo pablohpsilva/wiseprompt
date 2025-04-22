@@ -21,7 +21,10 @@ import { CreatePromptDto } from "./dto/create-prompt.dto";
 import { PurchasePromptDto } from "./dto/purchase-prompt.dto";
 import { RatePromptDto } from "./dto/rate-prompt.dto";
 import { SearchPromptsDto } from "./dto/search-prompts.dto";
-import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import {
+  JwtAuthGuard,
+  LooseJwtAuthGuard,
+} from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 
 @ApiTags("prompts")
@@ -37,6 +40,8 @@ export class PromptsController {
   }
 
   @Get(":id")
+  @UseGuards(LooseJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Get prompt details" })
   @ApiParam({ name: "id", description: "Prompt ID" })
   @ApiResponse({ status: 200, description: "Prompt details" })
@@ -47,7 +52,6 @@ export class PromptsController {
   ) {
     // If user is authenticated, pass their wallet address
     const walletAddress = user?.walletAddress;
-    console.log(`walletAddress`, walletAddress);
     return this.promptsService.getPromptById(id, walletAddress);
   }
 

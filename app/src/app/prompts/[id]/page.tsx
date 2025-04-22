@@ -5,10 +5,7 @@ import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
-
-interface Tag {
-  tag: string;
-}
+import { LabelValue } from "@/lib/types";
 
 interface Rating {
   id: string;
@@ -22,17 +19,19 @@ interface Prompt {
   name: string;
   description: string;
   goal: string;
-  testedAiAgents: string[];
+  testedAiAgents: LabelValue<string, number>[];
   promptVersion: string;
+  content: string;
   price: number;
   currency: string;
   walletAddress: string;
   createdAt: string;
   lastTestedDate: string | null;
-  tags: Tag[];
+  tags: LabelValue<string, number>[];
   ratings: Rating[];
   isPurchased?: boolean;
   isAuthor?: boolean;
+  author: string;
 }
 
 export default function PromptDetailPage() {
@@ -48,7 +47,14 @@ export default function PromptDetailPage() {
     try {
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/prompts/${prompt.id}/purchase`,
-        {},
+        {
+          transactionHash:
+            "0x" +
+            Array(70)
+              .fill(0)
+              .map(() => Math.floor(Math.random() * 16).toString(16))
+              .join(""),
+        },
         {
           headers: {
             Authorization: `Bearer ${user?.token}`,
@@ -80,9 +86,8 @@ export default function PromptDetailPage() {
 
       setIsLoading(true);
       try {
-        console.log(`user?.walletAddress`, user?.walletAddress)
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/prompts/${id}?walletAddress=${user?.walletAddress}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/prompts/${id}`,
           {
             headers: user?.token
               ? {
@@ -150,18 +155,26 @@ export default function PromptDetailPage() {
         <div className="p-6">
           <div className="flex justify-between items-start">
             <h1 className="text-3xl font-bold mb-2">{prompt.name}</h1>
-            <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+            <div className="text-2xl font-bold flex items-center text-primary-600 dark:text-primary-400">
               {prompt.price} {prompt.currency}
+              {prompt.isAuthor && (
+                <Link
+                  href={`/prompts/${id}/edit`}
+                  className="ml-4 py-1 px-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-200 cursor-pointer"
+                >
+                  Edit Prompt
+                </Link>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            {prompt.tags.map((tag) => (
+            {prompt.tags.map((tag, index) => (
               <span
-                key={tag.tag}
+                key={`${tag.id}-${index}`}
                 className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100"
               >
-                {tag.tag}
+                {tag.label}
               </span>
             ))}
           </div>
@@ -183,10 +196,10 @@ export default function PromptDetailPage() {
             <div className="flex flex-wrap gap-2">
               {prompt.testedAiAgents.map((agent) => (
                 <span
-                  key={agent}
+                  key={agent.id}
                   className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
                 >
-                  {agent}
+                  {agent.label}
                 </span>
               ))}
             </div>
@@ -198,16 +211,12 @@ export default function PromptDetailPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-gray-600 dark:text-gray-400">Version:</p>
-                <p className="font-medium">{prompt.promptVersion}</p>
+                <p className="text-gray-600 dark:text-gray-400">Author:</p>
+                <p className="font-medium truncate">{prompt?.author}</p>
               </div>
               <div>
-                <p className="text-gray-600 dark:text-gray-400">Last Tested:</p>
-                <p className="font-medium">
-                  {prompt.lastTestedDate
-                    ? new Date(prompt.lastTestedDate).toLocaleDateString()
-                    : "Not specified"}
-                </p>
+                <p className="text-gray-600 dark:text-gray-400">Version:</p>
+                <p className="font-medium">{prompt.contentVersion}</p>
               </div>
               <div>
                 <p className="text-gray-600 dark:text-gray-400">Created:</p>
@@ -216,18 +225,97 @@ export default function PromptDetailPage() {
                 </p>
               </div>
               <div>
-                <p className="text-gray-600 dark:text-gray-400">Author:</p>
-                <p className="font-medium truncate">{prompt.walletAddress}</p>
+                <p className="text-gray-600 dark:text-gray-400">Last Tested:</p>
+                <p className="font-medium">
+                  {prompt.lastTestedDate
+                    ? new Date(prompt.lastTestedDate).toLocaleDateString()
+                    : new Date(prompt.createdAt).toLocaleDateString()}
+                </p>
               </div>
             </div>
           </div>
+
+          {prompt.isPurchased ? (
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Prompt</h2>
+              <p className="mb-4">
+                Follow the instructions below to use the prompt.
+              </p>
+              <div className="relative">
+                <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto">
+                  <code className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                    {prompt.content?.split("\n").map((line, index) => (
+                      <React.Fragment key={index}>
+                        {line}
+                        {index <
+                          (prompt.content?.split("\n").length || 0) - 1 && (
+                          <br />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </code>
+                </pre>
+                <button
+                  onClick={() => {
+                    if (prompt.content) {
+                      navigator.clipboard.writeText(prompt.content);
+                      // Show toast message
+                      const toast = document.createElement("div");
+                      toast.className =
+                        "fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg transition-opacity duration-300";
+                      toast.textContent = "Prompt copied";
+                      document.body.appendChild(toast);
+                      setTimeout(() => {
+                        toast.style.opacity = "0";
+                        setTimeout(() => {
+                          document.body.removeChild(toast);
+                        }, 300);
+                      }, 2000);
+                    }
+                  }}
+                  className="absolute top-2 right-2 bg-white dark:bg-gray-700 p-2 rounded-full shadow cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  aria-label="Copy prompt"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-gray-600 dark:text-gray-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Prompt</h2>
+              <p className="mb-4">
+                After purchasing this prompt, you will be able to view the full
+                prompt.
+              </p>
+              <div className="relative">
+                <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto">
+                  <code className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {prompt.content}
+                  </code>
+                </pre>
+              </div>
+            </div>
+          )}
 
           {!isAuthenticated ? (
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
               <p>Please connect your wallet to purchase this prompt.</p>
             </div>
           ) : prompt.isAuthor ? (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex justify-between items-center">
               <p>You are the author of this prompt.</p>
             </div>
           ) : prompt.isPurchased ? (
@@ -237,7 +325,7 @@ export default function PromptDetailPage() {
           ) : (
             <button
               onClick={handlePurchase}
-              className="w-full py-3 px-4 bg-blue-500 hover:bg-primary-700 text-white font-bold rounded-md transition duration-200 cursor-pointer"
+              className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-700 text-white font-bold rounded-md transition duration-200 cursor-pointer"
             >
               Purchase Prompt
             </button>

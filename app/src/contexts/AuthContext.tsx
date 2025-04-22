@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount, useConnections, useDisconnect } from "wagmi";
 import { SiweMessage } from "siwe";
 import axios from "axios";
 import { useSignMessage } from "wagmi";
@@ -35,10 +35,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { address, isConnected } = useAccount();
+  const connections = useConnections();
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
 
   const login = async () => {
+    debugger;
     if (!address) return;
 
     try {
@@ -70,10 +72,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const messageToSign = message.prepareMessage();
 
       // 3. Sign the message with the wallet
-      const signature = await signMessageAsync({
-        account: address,
-        message: messageToSign,
-      });
+      const signature = await signMessageAsync(
+        {
+          account: address,
+          message: messageToSign,
+        },
+        {
+          onError: (error) => {
+            console.error("Error signing message:", error);
+          },
+          onSuccess: (data) => {
+            console.log("Signature:", data);
+          },
+          onSettled: () => {
+            console.log("Settled");
+          },
+        }
+      );
 
       // 4. Verify the signature on the server and get a JWT token
       const { data: verifyData } = await axios.post(
@@ -95,8 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // 6. Set the token in axios defaults for future requests
       axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     } catch (error) {
-      console.error("Authentication error:", error);
       logout();
+      console.error("Authentication error:", error);
       throw error;
     } finally {
       setLoading(false);
@@ -124,17 +139,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(false);
   }, []);
 
-  // Handle wallet disconnection
+  // Auto-login when wallet is connected
   useEffect(() => {
-    if (!isConnected && token) {
-      logout();
+    if (connections.length) {
+      if (isConnected && !Boolean(token)) {
+        login();
+        return;
+      }
+
+      if (!isConnected && Boolean(token)) {
+        logout();
+      }
     }
-  }, [isConnected, token]);
+  }, [isConnected, token, connections]);
 
   return (
     <AuthContext.Provider
       value={{
-        isAuthenticated: !!token,
+        isAuthenticated: Boolean(token),
         token,
         user,
         loading,

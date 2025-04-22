@@ -23,11 +23,39 @@ interface WhereClause {
 export class PromptsService {
   constructor(private prisma: PrismaService) {}
 
+  async getAiAgentsAndTags(promptId: string) {
+    const _testedAiAgents = await this.prisma.promptAiAgent.findMany({
+      where: { promptId },
+      include: {
+        aiAgent: true,
+      },
+    });
+
+    const _tags = await this.prisma.promptTag.findMany({
+      where: { promptId },
+      include: {
+        tag: true,
+      },
+    });
+
+    return {
+      testedAiAgents: _testedAiAgents.map((aiAgent) => ({
+        ...aiAgent,
+        value: aiAgent.aiAgent.id,
+        label: aiAgent.aiAgent.name,
+      })),
+      tags: _tags.map((tag) => ({
+        value: tag.tag.id,
+        label: tag.tag.name,
+      })),
+    };
+  }
+
   async searchPrompts(searchDto: SearchPromptsDto) {
     const {
       q,
-      aiAgent,
-      tags,
+      // aiAgent,
+      // tags,
       minRating,
       sort = SortOption.NEWEST,
       page = 1,
@@ -46,22 +74,22 @@ export class PromptsService {
       ];
     }
 
-    // Filter by AI agent
-    if (aiAgent) {
-      where.testedAiAgents = { has: aiAgent };
-    }
+    // // Filter by AI agent
+    // if (aiAgent) {
+    //   where.testedAiAgents = { has: aiAgent };
+    // }
 
-    // Filter by tags
-    if (tags) {
-      const tagArray = tags.split(",").map((tag) => tag.trim());
-      where.tags = {
-        some: {
-          tag: {
-            in: tagArray,
-          },
-        },
-      };
-    }
+    // // Filter by tags
+    // if (tags) {
+    //   const tagArray = tags.split(",").map((tag) => tag.trim());
+    //   where.tags = {
+    //     some: {
+    //       tag: {
+    //         in: tagArray,
+    //       },
+    //     },
+    //   };
+    // }
 
     // Filter by minimum rating
     if (minRating !== undefined) {
@@ -107,7 +135,6 @@ export class PromptsService {
       this.prisma.prompt.findMany({
         where,
         include: {
-          tags: true,
           ratings: {
             select: {
               ratingScore: true,
@@ -118,6 +145,7 @@ export class PromptsService {
               id: true,
             },
           },
+          currency: true,
         },
         orderBy,
         skip,
@@ -143,17 +171,15 @@ export class PromptsService {
         name: prompt.name,
         goal: prompt.goal,
         description: prompt.description,
-        testedAiAgents: prompt.testedAiAgents,
-        tags: prompt.tags.map((tag) => tag.tag),
+        // testedAiAgents: prompt.testedAiAgents,
+        // tags: prompt.tags.map((tag) => tag.tag),
         rating: avgRating,
         ratingCount: ratings.length,
         purchaseCount,
         price: prompt.price.toNumber(),
-        currency: prompt.currency,
+        currency: prompt.currency.code,
         createdAt: prompt.createdAt,
-        author: {
-          address: prompt.walletAddress,
-        },
+        author: prompt.walletAddress,
       };
     });
 
@@ -184,7 +210,7 @@ export class PromptsService {
     const prompt = await this.prisma.prompt.findUnique({
       where: { id },
       include: {
-        tags: true,
+        // tags: true,
         ratings: {
           select: {
             id: true,
@@ -198,6 +224,7 @@ export class PromptsService {
             : undefined,
           take: 1,
         },
+        currency: true,
       },
     });
 
@@ -228,6 +255,8 @@ export class PromptsService {
         (r) => r.walletAddress.toLowerCase() === walletAddress.toLowerCase()
       );
 
+    const { testedAiAgents, tags } = await this.getAiAgentsAndTags(prompt.id);
+
     // Format the response
     return {
       id: prompt.id,
@@ -235,22 +264,22 @@ export class PromptsService {
       goal: prompt.goal,
       description: prompt.description,
       // Only include the full content if the user is the author or has purchased
-      content: shouldIncludeContent ? prompt.description : undefined,
-      testedAiAgents: prompt.testedAiAgents,
-      tags: prompt.tags.map((tag) => tag.tag),
+      prompt: shouldIncludeContent
+        ? prompt.content
+        : `${prompt.content?.substring(0, 50)}...`,
+      testedAiAgents,
+      tags,
       rating: avgRating,
       ratingCount: ratings.length,
       price: prompt.price.toNumber(),
-      currency: prompt.currency,
+      currency: prompt.currency.code,
       promptVersion: prompt.promptVersion,
       createdAt: prompt.createdAt,
       updatedAt: prompt.updatedAt,
       isPurchased,
       isAuthor,
       hasRated,
-      author: {
-        address: prompt.walletAddress,
-      },
+      author: prompt.walletAddress,
     };
   }
 
@@ -268,7 +297,7 @@ export class PromptsService {
         id: true,
         walletAddress: true,
         price: true,
-        currency: true,
+        currencyId: true,
         name: true,
       },
     });
@@ -301,7 +330,10 @@ export class PromptsService {
         walletAddress: normalizedWalletAddress,
         transactionHash: purchaseDto.transactionHash,
         price: prompt.price,
-        currency: prompt.currency,
+        currencyId: prompt.currencyId,
+      },
+      include: {
+        currency: true,
       },
     });
 
@@ -310,7 +342,7 @@ export class PromptsService {
       promptId: purchase.promptId,
       purchaseDate: purchase.purchaseDate,
       price: purchase.price.toNumber(),
-      currency: purchase.currency,
+      currency: purchase.currency.code,
       prompt: {
         name: prompt.name,
       },
@@ -386,7 +418,7 @@ export class PromptsService {
   }
 
   async createPrompt(createPromptDto: CreatePromptDto, walletAddress: string) {
-    const { tags, ...promptData } = createPromptDto;
+    const { tags, testedAiAgents, currency, ...promptData } = createPromptDto;
     const normalizedWalletAddress = walletAddress.toLowerCase();
 
     // Create the prompt with tags in a transaction
@@ -397,7 +429,8 @@ export class PromptsService {
           ...promptData,
           walletAddress: normalizedWalletAddress,
           // Add any default values needed
-          promptVersion: promptData.promptVersion || "1.0.0",
+          promptVersion: promptData.promptVersion || "1",
+          currencyId: Number(currency),
         },
       });
 
@@ -407,7 +440,7 @@ export class PromptsService {
           prisma.promptTag.create({
             data: {
               promptId: newPrompt.id,
-              tag,
+              tagId: Number(tag),
             },
           })
         );
@@ -415,28 +448,45 @@ export class PromptsService {
         await Promise.all(tagCreatePromises);
       }
 
+      // Create AI agents if any
+      if (testedAiAgents && testedAiAgents.length > 0) {
+        const agentCreatePromises = testedAiAgents.map((agent) =>
+          prisma.promptAiAgent.create({
+            data: {
+              promptId: newPrompt.id,
+              aiAgentId: Number(agent),
+            },
+          })
+        );
+
+        await Promise.all(agentCreatePromises);
+      }
+
       // Return the created prompt with tags
       return await prisma.prompt.findUnique({
         where: { id: newPrompt.id },
-        include: { tags: true },
+        include: {
+          currency: true,
+        },
       });
     });
+
+    const { testedAiAgents: _testedAiAgents, tags: _tags } =
+      await this.getAiAgentsAndTags(prompt.id);
 
     return {
       id: prompt.id,
       name: prompt.name,
       goal: prompt.goal,
       description: prompt.description,
-      testedAiAgents: prompt.testedAiAgents,
       promptVersion: prompt.promptVersion,
-      tags: prompt.tags.map((tag) => tag.tag),
+      testedAiAgents: _testedAiAgents,
+      tags: _tags,
       price: prompt.price.toNumber(),
-      currency: prompt.currency,
+      currency: prompt.currency.code,
       createdAt: prompt.createdAt,
       updatedAt: prompt.updatedAt,
-      author: {
-        address: normalizedWalletAddress,
-      },
+      author: prompt.walletAddress,
     };
   }
 }

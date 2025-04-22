@@ -37,7 +37,6 @@ export default function PromptsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
-  console.log("isAuthenticated", isAuthenticated);
 
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -98,16 +97,16 @@ export default function PromptsPage() {
                 <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
                   {prompt.description}
                 </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {prompt.tags.map((tag) => (
+                {/* <div className="flex flex-wrap gap-2 mb-4">
+                  {prompt.tags.map((tag, index) => (
                     <span
-                      key={tag.tag}
+                      key={`${tag.id}-${index}`}
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100"
                     >
-                      {tag.tag}
+                      {tag.label}
                     </span>
                   ))}
-                </div>
+                </div> */}
                 <div className="flex justify-between items-center">
                   <span className="text-primary-600 dark:text-primary-400 font-bold">
                     {prompt.price} {prompt.currency}

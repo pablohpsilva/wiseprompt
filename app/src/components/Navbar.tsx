@@ -6,29 +6,22 @@ import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 const Navbar: React.FC = () => {
-  const { address, isConnected } = useAccount();
+  // const { address, isConnected } = useAccount();
   const { isAuthenticated, login, logout } = useAuth();
 
-  const handleLogin = async () => {
-    if (!isConnected) {
-      return toast.error("Please connect your wallet first");
-    }
+  // const handleLogin = async () => {
+  //   if (!isConnected) {
+  //     return toast.error("Please connect your wallet first");
+  //   }
 
-    try {
-      await login();
-      toast.success("Successfully signed in!");
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Failed to sign in with your wallet");
-    }
-  };
-
-  // Auto-login when wallet is connected
-  useEffect(() => {
-    if (isConnected && !isAuthenticated) {
-      handleLogin();
-    }
-  }, [isConnected, isAuthenticated]);
+  //   try {
+  //     await login();
+  //     toast.success("Successfully signed in!");
+  //   } catch (error) {
+  //     console.error("Login error:", error);
+  //     toast.error("Failed to sign in with your wallet");
+  //   }
+  // };
 
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-sm">

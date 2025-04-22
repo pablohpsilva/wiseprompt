@@ -1,10 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
+import Select from "react-select";
 import { useAuth } from "../../../contexts/AuthContext";
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
 
 export default function CreatePromptPage() {
   const router = useRouter();
@@ -14,13 +20,57 @@ export default function CreatePromptPage() {
     description: "",
     goal: "",
     prompt: "",
-    testedAiAgents: [""],
-    tags: [""],
+    testedAiAgents: [] as SelectOption[],
+    tags: [] as SelectOption[],
     price: 0,
     currency: "USD",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State for AI agents and tags options
+  const [aiAgentOptions, setAiAgentOptions] = useState<SelectOption[]>([]);
+  const [tagOptions, setTagOptions] = useState<SelectOption[]>([]);
+  const [isFetchingOptions, setIsFetchingOptions] = useState(true);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+
+  // Fetch AI Agents and Tags on mount
+  useEffect(() => {
+    const fetchOptions = async () => {
+      setIsFetchingOptions(true);
+      setOptionsError(null);
+      try {
+        const [aiAgentsRes, tagsRes] = await Promise.all([
+          axios.get(`${process.env.NEXT_PUBLIC_API_URL}/ai-agents`),
+          axios.get(`${process.env.NEXT_PUBLIC_API_URL}/tags`),
+        ]);
+
+        // Assuming API returns an array of objects with 'id' and 'name'
+        // Adjust 'value' and 'label' mapping if API structure is different
+        setAiAgentOptions(
+          aiAgentsRes.data.map((agent: { id: string; name: string }) => ({
+            value: agent.id, // Or agent.name if you want to send names
+            label: agent.name,
+          }))
+        );
+        setTagOptions(
+          tagsRes.data.map((tag: { id: string; name: string }) => ({
+            value: tag.id, // Or tag.name
+            label: tag.name,
+          }))
+        );
+      } catch (err) {
+        console.error("Error fetching options:", err);
+        setOptionsError(
+          "Failed to load AI agents or tags. Please try refreshing the page."
+        );
+      } finally {
+        setIsFetchingOptions(false);
+      }
+    };
+
+    fetchOptions();
+  }, []);
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -59,53 +109,14 @@ export default function CreatePromptPage() {
     }));
   };
 
-  const handleAiAgentChange = (index: number, value: string) => {
-    const newTestedAiAgents = [...formData.testedAiAgents];
-    newTestedAiAgents[index] = value;
+  // Handlers for react-select components
+  const handleMultiSelectChange = (
+    selectedOptions: readonly SelectOption[] | null,
+    field: "testedAiAgents" | "tags"
+  ) => {
     setFormData((prev) => ({
       ...prev,
-      testedAiAgents: newTestedAiAgents,
-    }));
-  };
-
-  const handleTagChange = (index: number, value: string) => {
-    const newTags = [...formData.tags];
-    newTags[index] = value;
-    setFormData((prev) => ({
-      ...prev,
-      tags: newTags,
-    }));
-  };
-
-  const addAiAgent = () => {
-    setFormData((prev) => ({
-      ...prev,
-      testedAiAgents: [...prev.testedAiAgents, ""],
-    }));
-  };
-
-  const removeAiAgent = (index: number) => {
-    const newTestedAiAgents = [...formData.testedAiAgents];
-    newTestedAiAgents.splice(index, 1);
-    setFormData((prev) => ({
-      ...prev,
-      testedAiAgents: newTestedAiAgents,
-    }));
-  };
-
-  const addTag = () => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: [...prev.tags, ""],
-    }));
-  };
-
-  const removeTag = (index: number) => {
-    const newTags = [...formData.tags];
-    newTags.splice(index, 1);
-    setFormData((prev) => ({
-      ...prev,
-      tags: newTags,
+      [field]: selectedOptions ? [...selectedOptions] : [],
     }));
   };
 
@@ -114,19 +125,21 @@ export default function CreatePromptPage() {
     setIsLoading(true);
     setError(null);
 
-    // Filter out empty values
-    const filteredTestedAiAgents = formData.testedAiAgents.filter(
-      (agent) => agent.trim() !== ""
+    // Map selected options to values (e.g., IDs or names) before sending
+    const testedAiAgentValues = formData.testedAiAgents.map(
+      (option) => option.value // Or option.label if sending names
     );
-    const filteredTags = formData.tags.filter((tag) => tag.trim() !== "");
+    const tagValues = formData.tags.map(
+      (option) => option.value // Or option.label if sending names
+    );
 
     try {
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/prompts`,
         {
           ...formData,
-          testedAiAgents: filteredTestedAiAgents,
-          tags: filteredTags,
+          testedAiAgents: testedAiAgentValues, // Send mapped values
+          tags: tagValues, // Send mapped values
           price: Number(formData.price),
         },
         {
@@ -164,6 +177,11 @@ export default function CreatePromptPage() {
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
               {error}
+            </div>
+          )}
+          {optionsError && (
+            <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded relative">
+              {optionsError}
             </div>
           )}
 
@@ -241,68 +259,53 @@ export default function CreatePromptPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                List the AI Agents you have <strong>tested</strong> this prompt
-                with
-              </label>
-              {formData.testedAiAgents.map((agent, index) => (
-                <div key={index} className="flex items-center mb-2">
-                  <input
-                    type="text"
-                    value={agent}
-                    onChange={(e) => handleAiAgentChange(index, e.target.value)}
-                    className="input mr-2"
-                    placeholder="e.g., GPT-4, Claude, etc."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeAiAgent(index)}
-                    className="text-red-500 hover:text-red-700"
-                    disabled={formData.testedAiAgents.length <= 1}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addAiAgent}
-                className="text-primary-600 hover:text-primary-800"
+              <label
+                htmlFor="testedAiAgents"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                + Add AI Agent
-              </button>
+                Tested AI Agents
+              </label>
+              <Select
+                id="testedAiAgents"
+                instanceId="testedAiAgents-select"
+                isMulti
+                name="testedAiAgents"
+                options={aiAgentOptions}
+                className="basic-multi-select"
+                classNamePrefix="select"
+                value={formData.testedAiAgents}
+                onChange={(selected) =>
+                  handleMultiSelectChange(selected, "testedAiAgents")
+                }
+                isLoading={isFetchingOptions}
+                isDisabled={isFetchingOptions || !!optionsError}
+                placeholder="Select AI Agents..."
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label
+                htmlFor="tags"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
                 Tags
               </label>
-              {formData.tags.map((tag, index) => (
-                <div key={index} className="flex items-center mb-2">
-                  <input
-                    type="text"
-                    value={tag}
-                    onChange={(e) => handleTagChange(index, e.target.value)}
-                    className="input mr-2"
-                    placeholder="e.g., creative, coding, etc."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeTag(index)}
-                    className="text-red-500 hover:text-red-700"
-                    disabled={formData.tags.length <= 1}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addTag}
-                className="text-primary-600 hover:text-primary-800"
-              >
-                + Add Tag
-              </button>
+              <Select
+                id="tags"
+                instanceId="tags-select"
+                isMulti
+                name="tags"
+                options={tagOptions}
+                className="basic-multi-select"
+                classNamePrefix="select"
+                value={formData.tags}
+                onChange={(selected) =>
+                  handleMultiSelectChange(selected, "tags")
+                }
+                isLoading={isFetchingOptions}
+                isDisabled={isFetchingOptions || !!optionsError}
+                placeholder="Select Tags..."
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
